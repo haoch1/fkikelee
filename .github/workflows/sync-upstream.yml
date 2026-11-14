@@ -1,0 +1,46 @@
+name: 自动同步上游
+
+on:
+  schedule:
+    # GitHub Actions 使用 UTC，19:00 对应北京时间次日 03:00。
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'haoch1/fkikelee'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出 main 分支
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: 检查并同步上游更新
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git remote add upstream https://github.com/fkingikelee/fkikelee.git
+          git fetch --no-tags upstream main
+
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo '上游暂无更新，跳过同步。' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-edit -m '同步：合并上游 main 的更新' upstream/main
+          git push origin HEAD:main
+
+          echo "已同步上游提交 $(git rev-parse --short upstream/main)。" >> "$GITHUB_STEP_SUMMARY"
