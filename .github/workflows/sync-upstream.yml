@@ -33,14 +33,19 @@ jobs:
           git remote add upstream https://github.com/fkingikelee/fkikelee.git
           git fetch --no-tags upstream main
 
-          if git merge-base --is-ancestor upstream/main HEAD; then
-            echo '上游暂无更新，跳过同步。' >> "$GITHUB_STEP_SUMMARY"
+          # 上游会重建提交历史，按文件快照同步，并保留本仓库的同步工作流。
+          git restore --source=upstream/main --staged --worktree -- \
+            . ':(exclude).github/workflows/sync-upstream.yml'
+
+          if git diff --cached --quiet; then
+            echo '上游内容暂无更新，跳过同步。' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git merge --no-edit -m '同步：合并上游 main 的更新' upstream/main
+          git commit -m '同步：更新上游 main 内容' \
+            -m "Upstream-Commit: $(git rev-parse upstream/main)"
           git push origin HEAD:main
 
           echo "已同步上游提交 $(git rev-parse --short upstream/main)。" >> "$GITHUB_STEP_SUMMARY"
